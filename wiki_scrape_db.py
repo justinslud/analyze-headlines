@@ -1,33 +1,17 @@
 import requests
 import bs4
 from bs4 import BeautifulSoup
-# import psycopg2
-# import credentials as creds
 import re
 import csv
 import time
 import random
-
-# conn_string = "host="+ creds.PGHOST +" port="+ "5432" +" dbname="+ creds.PGDATABASE +" user=" + creds.PGUSER +" password="+ creds.PGPASSWORD
-# conn = psycopg2.connect(conn_string)
-
-# c = conn.cursor()
+from itertools import chain
 
 months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-years = range(1995, 2020)
+# years = range(1995, 2020)
 
-headers = {}
-
-# for years in years:
-#     get_current_events(year)
-
-# get_current_events(1994, start_month='July')
-# get_current_events(2020, end_month='November')
-
-# day_month_years = c.execute('SELECT DISTINCT CONCAT(day, month, year) as month_year from headlines').fetchall()
-
-# sections = c.execute('SELECT subject from subjects').fetchall()
+headers = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36'}
 
 def get_headlines(year=2020, start_month='January', end_month='December'):
 
@@ -36,27 +20,28 @@ def get_headlines(year=2020, start_month='January', end_month='December'):
     for month in months[months.index(start_month): months.index(end_month)+1]:
 
         time.sleep(5 + random.random())
+        url = f'https://en.wikipedia.org/wiki/Portal:Current_events/{month}_{year}'
+        
+        response = requests.get(url)
 
-        response = requests.get('https://en.wikipedia.org/wiki/Portal:Current_events/{month}_{year}', headers=headers)
-
-        if response.status == 200:
-
-            soup = BeautifulSoup(response.content)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
 
             try:
-                headlines.append(get_headlines(soup, month, year))
+                headlines.append(get_month_headlines(soup, month, year))
+                print(f'Scraped {len(headlines[-1])} headlines from {month} {year}')
 
-            except:
-                pass
+            except Exception as e:
+                print(e)
 
-    return rows
+    return list(chain(*headlines))
 
 def get_month_headlines(soup, month, year):
 
     headlines = []
 
     for day, div in enumerate(soup.find_all('div', {'id': re.compile(r'{}_{}_\d\d'.format(year, month))})):
-        
+
         for element in div.next_elements:
             
             if type(element) == bs4.NavigableString:
@@ -65,6 +50,12 @@ def get_month_headlines(soup, month, year):
             if element.name == 'div':
                 break
 
+            if element.name == 'td' and element.next_element.name == 'ul':
+                for headline in element.next_element.find_all('li'):                              
+                    text = headline.text
+                    headlines.append([day+1, month, year, None, None, text])
+
+            # subject
             if element.name == 'dt':
 
                 subject = element.text
@@ -74,46 +65,61 @@ def get_month_headlines(soup, month, year):
                     if type(next_element) == bs4.NavigableString:
                         continue
 
-                    if next_element.name not in ['li', 'ul', 'a', 'i', 'b']:
+                    if next_element.name not in ['ul', 'li']:
                         break
 
-                    # print(next_element.a.text)
+                    # checks if event present
                     if next_element.name == 'ul':
 
-                    
-                        subheadlines = next_element.find_all('ul')
+                        # find all events
+                        subheadlines = next_element.find_all('li')
 
                         if subheadlines:
-
-                            event = next_element.a.text
-                            # print(event)
-                            # print(event, subheadlines)
+     
+                            # loop through events
                             for subheadline in subheadlines:
+                                event = subheadline.a.text
 
-                                text = subheadline.text
-                                headlines.append([day+1, month, year, subject, event, text])
-                        
+                                # checks for multiple headlines within an event
+                                if subheadline.ul:
 
-                        else:
-                            event = None
-                            text = next_element.text
+                                    # loops through headlines for a specific event
+                                    for headline in subheadline.ul.find_all('li'):
+                               
+                                        text = headline.text
+                                        headlines.append([day+1, month, year, subject, event, text])
+                            
 
-                            headlines.append([day+1, month, year, subject, event, text])
+                    else:
+                        event = None
+                        text = next_element.text
+
+                        headlines.append([day+1, month, year, subject, event, text])
 
     return headlines
+
 # get_headlines(year=2020, start_month='November', end_month='November')
 
-soup = BeautifulSoup(open('february_2015.html', 'r'), 'html.parser')
+#soup = BeautifulSoup(open('february_2015.html', 'r'), 'html.parser')
 
-headlines = get_month_headlines(soup, 'February', 2015)
+# headlines = get_month_headlines(soup, 'February', 2015)
+
+headlines = []
+
+for year in [2015, 2016]:
+    try:
+        headlines.append(get_headlines(year))
+    except Exception as e:
+        print(e)
+# soup = BeautifulSoup(open('feb2015.html').read(), 'html.parser')
+# headlines = get_month_headlines(soup, month='February', year=2015)
 
 # with open('february_2015.csv', 'w') as csvfile:
 #     csvwriter = csv.writer(csvfile, delimiter=',')
 #     csvwriter.writerow(['day', 'month', 'year', 'subject', 'event', 'text'])
 #     csvwriter.writerows(headlines)
 
-# with open('headlines.csv', 'w') as csvfile:
-#     csvwriter = csv.writer(csvfile, delimiter=',')
-#     csvwriter.writerow(['day', 'month', 'year', 'subject', 'event', 'text'])
-#     for i in headlines:
-#         csvwriter.writerows(i)
+with open('headlines.csv', 'w') as csvfile:
+    csvwriter = csv.writer(csvfile, delimiter=',')
+    csvwriter.writerow(['day', 'month', 'year', 'subject', 'event', 'text'])
+    csvwriter.writerows(list(chain(*headlines)))
