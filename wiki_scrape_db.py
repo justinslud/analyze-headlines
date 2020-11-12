@@ -9,15 +9,16 @@ from itertools import chain
 
 months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-# years = range(1995, 2020)
-
 headers = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36'}
 
-def get_headlines(year=2020, start_month='January', end_month='December'):
+def get_headlines(year=2020, start_month='January', end_month='December', months_list=None):
 
     headlines = []
 
-    for month in months[months.index(start_month): months.index(end_month)+1]:
+    if months_list is None:
+        months_list = months[months.index(start_month): months.index(end_month)+1]
+
+    for month in months_list:
 
         time.sleep(5 + random.random())
         url = f'https://en.wikipedia.org/wiki/Portal:Current_events/{month}_{year}'
@@ -55,6 +56,14 @@ def get_month_headlines(soup, month, year):
                     text = headline.text
                     headlines.append([day+1, month, year, None, None, text])
 
+            if element.name == 'table':
+                td = element.find('td', {'class': 'description'})
+                if td:
+                    if td.ul:
+                        for headline in element.find('td', {'class': 'description'}).ul.find_all('li'):
+                            text = headline.text
+                            headlines.append([day+1, month, year, None, None, text])
+
             # subject
             if element.name == 'dt':
 
@@ -65,7 +74,7 @@ def get_month_headlines(soup, month, year):
                     if type(next_element) == bs4.NavigableString:
                         continue
 
-                    if next_element.name not in ['ul', 'li']:
+                    if next_element.name not in ['ul', 'li', 'a', 'b', 'i']:
                         break
 
                     # checks if event present
@@ -90,36 +99,10 @@ def get_month_headlines(soup, month, year):
                                         headlines.append([day+1, month, year, subject, event, text])
                             
 
-                    else:
+                    elif next_element.name == 'li':
                         event = None
                         text = next_element.text
 
                         headlines.append([day+1, month, year, subject, event, text])
 
     return headlines
-
-# get_headlines(year=2020, start_month='November', end_month='November')
-
-#soup = BeautifulSoup(open('february_2015.html', 'r'), 'html.parser')
-
-# headlines = get_month_headlines(soup, 'February', 2015)
-
-headlines = []
-
-for year in [2015, 2016]:
-    try:
-        headlines.append(get_headlines(year))
-    except Exception as e:
-        print(e)
-# soup = BeautifulSoup(open('feb2015.html').read(), 'html.parser')
-# headlines = get_month_headlines(soup, month='February', year=2015)
-
-# with open('february_2015.csv', 'w') as csvfile:
-#     csvwriter = csv.writer(csvfile, delimiter=',')
-#     csvwriter.writerow(['day', 'month', 'year', 'subject', 'event', 'text'])
-#     csvwriter.writerows(headlines)
-
-with open('headlines.csv', 'w') as csvfile:
-    csvwriter = csv.writer(csvfile, delimiter=',')
-    csvwriter.writerow(['day', 'month', 'year', 'subject', 'event', 'text'])
-    csvwriter.writerows(list(chain(*headlines)))
