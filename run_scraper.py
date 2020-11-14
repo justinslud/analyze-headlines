@@ -1,12 +1,15 @@
-from wiki_scrape_db import get_healines
+from wiki_scrape_db import get_headlines
 
 headlines = []
 
-for year in [2003, 2004, 2005, 2006]:
+for year in list(range(1995, 2020)):
     try:
         headlines.append(get_headlines(year))
     except Exception as e:
         print(e)
+
+headlines.append(get_headlines(1994, start_month='July'))
+headlines.append(get_headlines(2020, end_month='November'))
 
 with open('headlines.csv', 'w') as csvfile:
     csvwriter = csv.writer(csvfile, delimiter=',')
