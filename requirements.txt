@@ -7,3 +7,5 @@ matplotlib
 cleantext
 sklearn
 nltk
+flask
+streamlit
